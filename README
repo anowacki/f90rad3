@@ -3,5 +3,5 @@ f90rad3
 
 This directory contains a set of Fortran routines for
 reading and writing rad3 files, as used by Mala GPR
-equipment.  Base on the MATLAB rd3functions code by
+equipment.  Based on the MATLAB rd3functions code by
 Aslak Grinsted, 2002.
