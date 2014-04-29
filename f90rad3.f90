@@ -19,8 +19,11 @@ module f90rad3
    integer, parameter, private :: RAD3_RAD_FILE_LEN = 38 ! No lines in .rad file
 
    ! Logical units for I/O
-   integer, parameter, private :: IERR = 0, ISTDIN = 5, ISTDOUT = 6, &
+   integer, parameter, private :: ISTDERR = 0, ISTDIN = 5, ISTDOUT = 6, &
                                   IIN = 10, IOUT = 11
+
+   ! Private variables modified by routines
+   logical, private :: verbose = .false.
 
    ! Helper routines not exposed
    private :: rad3_error, &
@@ -70,7 +73,7 @@ module f90rad3
       real(rs) :: wheel_calibration
       integer :: positive_direction
       ! Trace/Section part.  First dimension is point, second trace number
-      integer(rad3int), dimension(:,:), allocatable :: tr
+      real(rs), dimension(:,:), allocatable :: tr
       real(rs), dimension(:), allocatable :: x    ! Shot offset
       real(rs), dimension(:), allocatable :: twtt ! Travel times
    end type rad3trace
@@ -84,40 +87,45 @@ subroutine rad3_load(file, tr)
 ! the same name must be in the same directory as the filename supplied.
    character(len=*), intent(in) :: file
    type(rad3trace), intent(inout) :: tr
+   integer(rad3int), dimension(:), allocatable :: temp_trace
    logical :: exists
    integer :: i
 
-   if (file(len_trim(file)-3:len_trim(file)) == '.rd3') &
-      call rad3_warning('rad3_load: Supplied filename includes extension.  Do not supply.')
+   if (len_trim(file) > 5) then
+      if (file(len_trim(file)-3:len_trim(file)) == '.rd3') &
+         call rad3_warning('rad3_load: Supplied filename includes extension.  Do not supply.')
+   endif
    ! Get header information
    call rad3_read_rad_file(trim(file)//'.rad', tr)
    ! Allocate memory for section
    if (allocated(tr%tr)) deallocate(tr%tr)
    allocate(tr%tr(tr%n, tr%last_trace))
+   allocate(temp_trace(tr%n))
    ! Check file exists
    inquire(file=trim(file)//'.rd3', exist=exists)
    if (.not.exists) &
       call rad3_error('rad3_load: File "'//trim(file)//'.rad3" does not exist')
    open(IIN, file=trim(file)//'.rd3', access='direct', recl=rad3int*tr%n)
    do i = 1, tr%last_trace
-      read(IIN, rec=i) tr%tr(:,i)
+      read(IIN, rec=i) temp_trace
+      tr%tr(:,i) = real(temp_trace, kind=rs)
    enddo
    close(IIN)
+   deallocate(temp_trace)
 end subroutine rad3_load
 !-------------------------------------------------------------------------------
 
 !===============================================================================
 subroutine rad3_info(tr)
 !===============================================================================
-   implicit none
+! Write some useful information about a rad3 file to stdout
    type(rad3trace), intent(in) :: tr
    write(ISTDOUT,'(a,f0.8)') 'delta = ', tr % delta
    write(ISTDOUT,'(a,i0.0)') 'npts  = ', tr % n
    write(ISTDOUT,'(a,f0.8)') 'dx    = ', tr % distance_interval
    write(ISTDOUT,'(a,f0.8)') 'xmax  = ', tr % x(tr%last_trace)
    write(ISTDOUT,'(a,f0.8)') 'tmax  = ', tr % twtt(tr%n)
-!    write(ISTDOUT,'(a,i0.0)') 'Amin  = ', minval(tr%tr)
-!    write(ISTDOUT,'(a,i0.0)') 'Amax  = ', maxval(tr%tr)
+   write(ISTDOUT,'(a,i0.0)') 'xpts  = ', tr % last_trace
 end subroutine rad3_info
 !-------------------------------------------------------------------------------
 
@@ -261,6 +269,45 @@ end subroutine rad3_read_rad_file
 !-------------------------------------------------------------------------------
 
 !===============================================================================
+subroutine rad3_remove_mean(tr)
+!===============================================================================
+! Remove the mean trace from each shot
+   type(rad3trace), intent(inout) :: tr
+   real(dp), dimension(tr%n) :: mean
+   integer :: i
+   call rad3_verbose('rad3_remove_mean: Removing mean from trace')
+   mean = 0
+   do i = 1, tr%last_trace
+      mean(1:tr%n) = mean(1:tr%n) + &
+         real(tr%tr(1:tr%n,i), kind=dp)/real(tr%last_trace, kind=dp)
+   enddo
+   do i = 1, tr%last_trace
+      tr%tr(1:tr%n,i) = tr%tr(1:tr%n,i) - real(mean(1:tr%n), kind=rs)
+   enddo
+end subroutine rad3_remove_mean
+!-------------------------------------------------------------------------------
+
+!===============================================================================
+subroutine rad3_gain(tr, start_samp, lin_gain, exp_gain)
+!===============================================================================
+! Apply time-varying gain to a trace of the form
+!    A(t) = A0(t)*lin_gain*t*exp(exp_gain*t),
+! starting at sample number start_samp
+   type(rad3trace), intent(inout) :: tr
+   integer, intent(in) :: start_samp
+   real(dp), intent(in) :: lin_gain, exp_gain
+   integer :: it
+   call rad3_error('rad3_gain is not working yet')
+   if (start_samp < 1 .or. start_samp > tr%n) &
+      call rad3_error('rad3_gain: Start sample must be between 1 and nsamples')
+   do it = start_samp, tr%n
+      tr%tr(it,:) = real(real(tr%tr(it,:),dp)*lin_gain*real(tr%twtt(it-start_samp+1),dp)* &
+                        exp(exp_gain*real(tr%twtt(it-start_samp+1),dp)), kind=rs)
+   enddo
+end subroutine rad3_gain
+!-------------------------------------------------------------------------------
+
+!===============================================================================
 subroutine rad3_allocate(a, n)
 !===============================================================================
    real(rs), intent(inout), dimension(:), allocatable :: a
@@ -277,7 +324,7 @@ end subroutine rad3_allocate
 subroutine rad3_error(str)
 !===============================================================================
    character(len=*), intent(in) :: str
-   write(IERR,'(a)') 'f90rad3: Error: '//str
+   write(ISTDERR,'(a)') 'f90rad3: Error: '//str
    stop
 end subroutine rad3_error
 !-------------------------------------------------------------------------------
@@ -286,8 +333,24 @@ end subroutine rad3_error
 subroutine rad3_warning(str)
 !===============================================================================
    character(len=*), intent(in) :: str
-   write(IERR,'(a)') 'f90rad3: Warning: '//str
+   write(ISTDERR,'(a)') 'f90rad3: Warning: '//str
 end subroutine rad3_warning
+!-------------------------------------------------------------------------------
+
+!===============================================================================
+subroutine rad3_set_verbose()
+!===============================================================================
+! Make the module verbose
+   verbose = .true.
+end subroutine rad3_set_verbose
+!-------------------------------------------------------------------------------
+
+!===============================================================================
+subroutine rad3_verbose(str)
+!===============================================================================
+   character(len=*), intent(in) :: str
+   if (verbose) write(ISTDERR,'(a)') 'f90rad3: '//str
+end subroutine rad3_verbose
 !-------------------------------------------------------------------------------
 
 end module f90rad3
