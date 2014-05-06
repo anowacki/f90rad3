@@ -291,20 +291,30 @@ end subroutine rad3_remove_mean
 subroutine rad3_gain(tr, start_samp, lin_gain, exp_gain)
 !===============================================================================
 ! Apply time-varying gain to a trace of the form
-!    A(t) = A0(t)*lin_gain*t*exp(exp_gain*t),
+!    A(t) = A0(t)*lin_gain + t*exp(exp_gain*t),
 ! starting at sample number start_samp
    type(rad3trace), intent(inout) :: tr
    integer, intent(in) :: start_samp
    real(dp), intent(in) :: lin_gain, exp_gain
    integer :: it
-   call rad3_error('rad3_gain is not working yet')
    if (start_samp < 1 .or. start_samp > tr%n) &
       call rad3_error('rad3_gain: Start sample must be between 1 and nsamples')
    do it = start_samp, tr%n
-      tr%tr(it,:) = real(real(tr%tr(it,:),dp)*lin_gain*real(tr%twtt(it-start_samp+1),dp)* &
-                        exp(exp_gain*real(tr%twtt(it-start_samp+1),dp)), kind=rs)
+      tr%tr(it,:) = real(real(tr%tr(it,:),dp) + &
+         lin_gain*real(tr%twtt(it-start_samp+1),dp)* &
+         exp(exp_gain*1.e-9_dp*real(tr%twtt(it-start_samp+1),dp)), kind=rs)
    enddo
 end subroutine rad3_gain
+!-------------------------------------------------------------------------------
+
+!===============================================================================
+subroutine rad3_delete(tr)
+!===============================================================================
+   type(rad3trace), intent(inout) :: tr
+   if (allocated(tr%x)) deallocate(tr%x)
+   if (allocated(tr%tr)) deallocate(tr%tr)
+   if (allocated(tr%twtt)) deallocate(tr%twtt)
+end subroutine rad3_delete
 !-------------------------------------------------------------------------------
 
 !===============================================================================
