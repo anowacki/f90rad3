@@ -1,5 +1,5 @@
 !===============================================================================
-program rad3toncf
+program rad3voltoncf
 !===============================================================================
 ! Convert a set of rad3 files to NetCDF format.  Supply a file containing lines
 !     file, y_offset, x_offset
@@ -12,7 +12,7 @@ program rad3toncf
    character(len=250) :: infile, outfile = 'rad3voltoncf.nc', command
    real(8) :: lin_gain, exp_gain
    integer :: start_samp
-   logical :: rmean = .false., gain = .false., outfile_set = .false.
+   logical :: rmean = .false., gain = .false.
 
    call get_args
 
@@ -58,7 +58,6 @@ contains
                iarg = iarg + 4
             case('-o')
                call get_command_argument(iarg+1, outfile)
-               outfile_set = .true.
                iarg = iarg + 2
             case('-rmean')
                rmean = .true.
@@ -70,9 +69,8 @@ contains
                call usage
          end select
       enddo
-      if (.not.outfile_set) outfile = trim(infile) // '.nc'
       call get_command(command)
    end subroutine get_args
 
-end program rad3toncf
+end program rad3voltoncf
 !-------------------------------------------------------------------------------
