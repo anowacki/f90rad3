@@ -30,7 +30,8 @@ module f90rad3
               rad3_warning, &
               rad3_allocate, &
               rad3_verbose, &
-              rad3_check_file_name
+              rad3_check_file_name, &
+              check_ncf
 
    ! Type defining a section (collection of traces)
    type rad3trace
@@ -313,13 +314,79 @@ subroutine rad3_save_netcdf(tr, file, history)
    ! Finalise file
    call check_ncf(nf90_close(ncid))
 
-contains
-   subroutine check_ncf(status)
-      integer, intent(in) :: status
-      if (status /= nf90_noerr) &
-         call rad3_error('rad3_save_netcdf: '//trim(nf90_strerror(status)))
-      end subroutine check_ncf
 end subroutine rad3_save_netcdf
+!-------------------------------------------------------------------------------
+
+!===============================================================================
+subroutine rad3_save_volume_netcdf(v, file, history)
+!===============================================================================
+! Save a RAD3 volume to a 3D NetCDF file
+! Optionally supply a string (history) to detail the command used to produce
+! the NetCDF file (e.g., what filtering used)
+   use netcdf, only: nf90_create, nf90_def_dim, nf90_def_var, nf90_enddef, &
+      nf90_put_var, nf90_close, NF90_CLOBBER, NF90_FLOAT, nf90_noerr, nf90_strerror, &
+      NF90_GLOBAL, nf90_put_att
+   type(rad3volume), intent(in) :: v
+   character(len=*), intent(in) :: file
+   character(len=*), intent(in), optional :: history
+   integer :: ncid, x_dimid, y_dimid, twtt_dimid, &
+              x_varid, y_varid, twtt_varid, amp_varid
+
+   call rad3_check_volume_exists(v)
+   ! Create file
+   call check_ncf(nf90_create(trim(file), NF90_CLOBBER, ncid))
+
+   ! Define dimensions
+   call check_ncf(nf90_def_dim(ncid, 'x',    v%nx, x_dimid))
+   call check_ncf(nf90_def_dim(ncid, 'y',    v%ny, y_dimid))
+   call check_ncf(nf90_def_dim(ncid, 'twtt', v%nt, twtt_dimid))
+   ! Set variables for coordinates
+   call check_ncf(nf90_def_var(ncid, 'x',    NF90_FLOAT, x_dimid,    x_varid))
+   call check_ncf(nf90_def_var(ncid, 'y',    NF90_FLOAT, y_dimid,    y_varid))
+   call check_ncf(nf90_def_var(ncid, 'twtt', NF90_FLOAT, twtt_dimid, twtt_varid))
+   call check_ncf(nf90_put_att(ncid, x_varid,    'units', 'm'))
+   call check_ncf(nf90_put_att(ncid, y_varid,    'units', 'm'))
+   call check_ncf(nf90_put_att(ncid, twtt_varid, 'units', 'ns'))
+   call check_ncf(nf90_put_att(ncid, x_varid,    'long_name', 'Distance along lines'))
+   call check_ncf(nf90_put_att(ncid, y_varid,    'long_name', 'Distance across lines'))
+   call check_ncf(nf90_put_att(ncid, twtt_varid, 'long_name', 'Two-way travel time'))
+   call check_ncf(nf90_put_att(ncid, x_varid,    'actual_range', (/v%x(1), v%x(v%nx)/)))
+   call check_ncf(nf90_put_att(ncid, y_varid,    'actual_range', (/v%y(1), v%y(v%ny)/)))
+   call check_ncf(nf90_put_att(ncid, twtt_varid, 'actual_range', &
+      (/v%twtt(1), v%twtt(v%nt)/)))
+   call check_ncf(nf90_def_var(ncid, 'amplitude', NF90_FLOAT, &
+      (/x_dimid, y_dimid, twtt_dimid/), amp_varid))
+   ! Set variables for amplitude
+   call check_ncf(nf90_put_att(ncid, amp_varid, 'long_name', 'Radar amplitude'))
+   call check_ncf(nf90_put_att(ncid, amp_varid, 'actual_range', &
+      (/minval(v%amp), maxval(v%amp)/)))
+
+   ! Add comments about data
+   call check_ncf(nf90_put_att(ncid, NF90_GLOBAL, 'title', &
+      'Converted from RAD3 by f90rad3'))
+!    call check_ncf(nf90_put_att(ncid, NF90_GLOBAL, 'comment', &
+!       'Operator: '// trim(tr%operator_name) // '; ' // &
+!       'Customer: '// trim(tr%customer_name) // '; ' // &
+!       'Site: ' // trim(tr%site_name) // '; ' // &
+!       'Antennas: ' // trim(tr%antennas) // '; ' // &
+!       'Antenna orientation: ' // trim(tr%antenna_orientation) // '; ' // &
+!       'Comments: ' // trim(tr%comment)))
+   if (present(history)) then
+      call check_ncf(nf90_put_att(ncid, NF90_GLOBAL, 'history', trim(history)))
+   endif
+   ! Finish data description
+   call check_ncf(nf90_enddef(ncid))
+
+   ! Fill structure
+   call check_ncf(nf90_put_var(ncid, x_varid,    v%x))
+   call check_ncf(nf90_put_var(ncid, y_varid,    v%y))
+   call check_ncf(nf90_put_var(ncid, twtt_varid, v%twtt))
+   call check_ncf(nf90_put_var(ncid, amp_varid,  v%amp))
+
+   ! Finalise file
+   call check_ncf(nf90_close(ncid))
+
+end subroutine rad3_save_volume_netcdf
 !-------------------------------------------------------------------------------
 
 !===============================================================================
@@ -719,6 +786,16 @@ end subroutine rad3_check_exists
 !-------------------------------------------------------------------------------
 
 !===============================================================================
+subroutine rad3_check_volume_exists(v)
+!===============================================================================
+   type(rad3volume), intent(in) :: v
+   if (.not.allocated(v%x) .or. .not.allocated(v%y) .or. &
+      .not.allocated(v%twtt) .or. .not.allocated(v%amp)) &
+      call rad3_error('rad3_check_volume_exists: Trace does not exist')
+end subroutine rad3_check_volume_exists
+!-------------------------------------------------------------------------------
+
+!===============================================================================
 subroutine rad3_error(str)
 !===============================================================================
    character(len=*), intent(in) :: str
@@ -749,6 +826,16 @@ subroutine rad3_verbose(str)
    character(len=*), intent(in) :: str
    if (verbose) write(ISTDERR,'(a)') 'f90rad3: '//str
 end subroutine rad3_verbose
+!-------------------------------------------------------------------------------
+
+!===============================================================================
+subroutine check_ncf(status)
+!===============================================================================
+   use netcdf, only: nf90_noerr, nf90_strerror
+   integer, intent(in) :: status
+   if (status /= nf90_noerr) &
+      call rad3_error('rad3_save_netcdf: '//trim(nf90_strerror(status)))
+end subroutine check_ncf
 !-------------------------------------------------------------------------------
 
 end module f90rad3

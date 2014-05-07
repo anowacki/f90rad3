@@ -12,14 +12,16 @@ INCS = -I/opt/local/include
 PROGS = $B/rad3dump \
         $B/rad3info \
         $B/rad3slice \
-        $B/rad3toncf
+        $B/rad3toncf \
+        $B/rad3voltoncf
 
 MODS = $O/f90rad3.o
 
 OBJS = $O/rad3dump.o \
        $O/rad3info.o \
        $O/rad3slice.o \
-       $O/rad3toncf.o
+       $O/rad3toncf.o \
+       $O/rad3voltoncf.o
 
 default: $(PROGS)
 
