@@ -11,29 +11,30 @@ INCS = -I/opt/local/include
 
 PROGS = $B/rad3dump \
         $B/rad3info \
-		$B/rad3toncf
+        $B/rad3slice \
+        $B/rad3toncf
 
 MODS = $O/f90rad3.o
 
 OBJS = $O/rad3dump.o \
        $O/rad3info.o \
-	   $O/rad3toncf.o
+       $O/rad3slice.o \
+       $O/rad3toncf.o
 
 default: $(PROGS)
 
-$B/rad3dump: $(MODS) $O/rad3dump.o
+# Build programs
+$B/%: $(MODS) $O/%.o
 	$(FC) $(FFLAGS) -J$M $(LIBS) $(INCS) -o $@ $^
 
-$B/rad3info: $(MODS) $O/rad3info.o
-	$(FC) $(FFLAGS) -J$M $(LIBS) $(INCS) -o $@ $^
-
-$B/rad3toncf: $(MODS) $O/rad3toncf.o
-	$(FC) $(FFLAGS) -J$M $(LIBS) $(INCS) -o $@ $^
-
+# Build object files
 $O/%.o: %.f90
 	$(FC) $(FFLAGS) -c -J$M $(INCS) -o $O/$*.o $*.f90
 
+# Dependencies
 $(PROGS): $(MODS)
+
+$(OBJS): $(MODS)
 
 .PHONY: clean
 
