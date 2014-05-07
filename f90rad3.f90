@@ -81,6 +81,14 @@ module f90rad3
       real(rs), dimension(:), allocatable :: twtt ! Travel times
    end type rad3trace
 
+   ! Type defining a collection of traces which form a 3D volume
+   type rad3volume
+      real(rs) :: dx, dy, dt
+      integer :: nx, ny, nt
+      real(rs), dimension(:), allocatable :: x, y, twtt ! x along trace
+      real(rs), dimension(:,:,:), allocatable :: amp
+   end type rad3volume
+
 contains
 
 !===============================================================================
@@ -113,6 +121,109 @@ subroutine rad3_load(file, tr)
    close(IIN)
    deallocate(temp_trace)
 end subroutine rad3_load
+!-------------------------------------------------------------------------------
+
+!===============================================================================
+subroutine rad3_load_volume(infile, vol)
+!===============================================================================
+! Read in a collection of traces forming a volume.  They must be equally spaced
+! in the dimension perpendicular to the x orientation.
+! Supply:
+!  file:  Name of file containing on each line:
+!     filename, y_offset, x_offset
+   type(rad3volume), intent(inout) :: vol
+   character(len=*), intent(in) :: infile
+   integer :: nfiles
+   character(len=RAD3_FILENAME_LEN), dimension(:), allocatable :: files
+   real(rs) :: xmin, xmax
+   real(rs), dimension(:), allocatable :: x0
+
+   call rad3_delete_volume(vol)
+   call read_input
+   call load_files
+
+   deallocate(x0, files)
+
+contains
+   subroutine read_input()
+      integer :: ifile, iostat
+      character(len=250) :: arg
+      logical :: exists
+      inquire(file=infile, exist=exists)
+      if (.not.exists) &
+         call rad3_error('rad3_load_volume: File "'//trim(infile)//'" does not exist')
+      open(IIN, file=infile)
+      ! Count number of files/traces
+      ifile = 0
+      do
+         if (verbose) write(ISTDERR,'(a,i0)') 'rad3_load_volume: Reading line ',ifile+1
+         read(IIN,'(a)',iostat=iostat) arg
+         if (iostat < 0) then
+            nfiles = ifile
+            vol % ny = nfiles
+            if (verbose) write(ISTDERR,'(a,i0)') 'rad3_load_volume: Total traces = ',nfiles
+            exit
+         endif
+         if (iostat > 0) &
+            call rad3_error('rad3_load_volume: Problem reading file "'//trim(infile)//'"')
+         ifile = ifile + 1
+      enddo
+      allocate(files(nfiles))
+      allocate(vol % y(nfiles))
+      allocate(x0(nfiles))
+      ! Read parameters for each file
+      rewind(IIN)
+      do ifile = 1, nfiles
+         if (verbose) write(ISTDERR,'(a,i0)') 'rad3_load_volume: Reading data from line ',ifile
+         read(IIN,*,iostat=iostat) files(ifile), vol%y(ifile), x0(ifile)
+         if (iostat /= 0) &
+            call rad3_error('rad3_load_volume: Problem getting values from file "'//trim(infile)//'"')
+      enddo
+      vol % dy = abs(vol%y(2) - vol%y(1))
+      close(IIN)
+   end subroutine read_input
+
+   subroutine load_files()
+      type(rad3trace) :: tr
+      integer :: i, ix1, ix2
+      ! Get box dimensions
+      do i = 1, nfiles
+         call rad3_read_rad_file(trim(files(i))//'.rad', tr)
+         if (i == 1) then
+            xmin = x0(i)
+            xmax = x0(i) + tr%x(tr%last_trace)
+            vol % dx = tr%distance_interval
+            vol % dt = tr%delta
+            vol % nt = tr%n
+            allocate(vol%twtt(vol%nt))
+            vol%twtt = tr%twtt
+            if (verbose) write(ISTDERR,'(a,2(1x,f0.6))') 'rad3_load_volume: xmin,xmax =',xmin,xmax
+         endif
+         if (x0(i) + tr%x(tr%last_trace) > xmax) &
+            xmax = x0(i) + tr%x(tr%last_trace)
+         if (x0(i) < xmin) xmin = x0(i)
+         call rad3_delete(tr)
+      enddo
+      vol % nx = nint((xmax - xmin)/tr%distance_interval) + 1
+      if (verbose) write(ISTDERR,'(a,3(1x,i0))') 'rad3_load_volume: nx,ny,nt =',vol%nx,vol%ny,vol%nt
+      allocate(vol%x(vol%nx))
+      ! Fill in array of x values
+      do i = 1, nfiles
+         vol % x(i) = xmin + real(i-1)*vol%dx
+      enddo
+      allocate(vol%amp(vol%nx,vol%ny,vol%nt))
+      vol % amp = 0.
+      ! Read traces into correct position
+      do i = 1, nfiles
+         call rad3_load(files(i), tr)
+         ix1 = nint((x0(i) - xmin)/tr%distance_interval) + 1
+         ix2 = ix1 + tr%last_trace - 1
+         vol%amp(ix1:ix2,i,:) = transpose(tr%tr(:,1:tr%last_trace))
+         call rad3_delete(tr)
+      enddo
+   end subroutine load_files
+
+end subroutine rad3_load_volume
 !-------------------------------------------------------------------------------
 
 !===============================================================================
@@ -244,6 +355,50 @@ subroutine rad3_dump(tr)
       enddo
    enddo
 end subroutine rad3_dump
+!-------------------------------------------------------------------------------
+
+!===============================================================================
+subroutine rad3_dump_volume(v)
+!===============================================================================
+! Send the values of a volume out as x,y,t,amplitude
+   type(rad3volume), intent(in) :: v
+   integer :: ix, iy, it
+   write(0,'(a,i0.0,1x,i0.0,1x,i0.0)') 'Dimensions of volume (nx,ny,nt): ', &
+      v%nx, v%ny, v%nt
+   write(0,'(a,6(f0.6,1x))') 'Limits of volume (x1,x2,y1,y2,t1,t2): ', &
+      v%x(1), v%x(v%nx), v%y(1), v%y(v%ny), v%twtt(1), v%twtt(v%nt)
+   write(0,'(a,f0.4)') 'Maximum amplitude: ', maxval(abs(v%amp))
+   write(0,'(a,f0.6,2(1x,f0.6))') 'Grid spacing (x,y,t): ', v%dx, v%dy, v%dt
+   do ix = 1, v%nx
+      do iy = 1, v%ny
+         do it = 1, v%nt
+            write(*,*) v%x(ix), v%y(iy), v%twtt(it), v%amp(ix,iy,it)
+         enddo
+      enddo
+   enddo
+end subroutine rad3_dump_volume
+!-------------------------------------------------------------------------------
+
+!===============================================================================
+subroutine rad3_dump_slice(v, twtt)
+!===============================================================================
+! Send the values of a given timeslice of a volume to stdout as x,y,amplitude
+   type(rad3volume), intent(in) :: v
+   real(rs), intent(in) :: twtt
+   integer :: ix, iy, it
+   it = nint((twtt - v%twtt(1))/v%dt)
+   write(0,'(a,i0.0,1x,i0.0,1x,i0.0)') 'Dimensions of volume (nx,ny,nt): ', &
+      v%nx, v%ny, v%nt
+   write(0,'(a,6(f0.6,1x))') 'Limits of volume (x1,x2,y1,y2,t1,t2): ', &
+      v%x(1), v%x(v%nx), v%y(1), v%y(v%ny), v%twtt(1), v%twtt(v%nt)
+   write(0,'(a,f0.4)') 'Maximum amplitude: ', maxval(abs(v%amp(:,:,it)))
+   write(0,'(a,f0.6,2(1x,f0.6))') 'Grid spacing (x,y,t): ', v%dx, v%dy, v%dt
+   do ix = 1, v%nx
+      do iy = 1, v%ny
+            write(*,*) v%x(ix), v%y(iy), v%amp(ix,iy,it)
+      enddo
+   enddo
+end subroutine rad3_dump_slice
 !-------------------------------------------------------------------------------
 
 !===============================================================================
@@ -441,6 +596,29 @@ end subroutine rad3_remove_mean
 !-------------------------------------------------------------------------------
 
 !===============================================================================
+subroutine rad3_volume_remove_mean(v)
+!===============================================================================
+! Remove the mean trace from the volume.  Only operates on points with data,
+! i.e., where the trace is not zeroed.
+   type(rad3volume), intent(inout) :: v
+   real(rs), dimension(v%nt) :: mean
+   integer :: ix, iy
+   call rad3_verbose('rad3_volume_remove_mean: Removing mean trace from volume')
+   mean = 0
+   do iy = 1, v%ny
+      do ix = 1, v%nx
+         if (maxval(abs(v%amp(ix,iy,:))) > 1) mean = mean + v%amp(ix,iy,:)
+      enddo
+   enddo
+   do iy = 1, v%ny
+      do ix = 1, v%nx
+         if (maxval(abs(v%amp(ix,iy,:))) > 1) v%amp(ix,iy,:) = v%amp(ix,iy,:) - mean
+      enddo
+   enddo
+end subroutine rad3_volume_remove_mean
+!-------------------------------------------------------------------------------
+
+!===============================================================================
 subroutine rad3_gain(tr, start_samp, lin_gain, exp_gain)
 !===============================================================================
 ! Apply time-varying gain to a trace of the form
@@ -468,6 +646,20 @@ subroutine rad3_delete(tr)
    if (allocated(tr%tr)) deallocate(tr%tr)
    if (allocated(tr%twtt)) deallocate(tr%twtt)
 end subroutine rad3_delete
+!-------------------------------------------------------------------------------
+
+!===============================================================================
+subroutine rad3_delete_volume(tr)
+!===============================================================================
+   type(rad3volume), intent(inout) :: tr
+   if (allocated(tr%x)) deallocate(tr%x)
+   if (allocated(tr%y)) deallocate(tr%y)
+   if (allocated(tr%twtt)) deallocate(tr%twtt)
+   if (allocated(tr%amp)) deallocate(tr%amp)
+   tr % dx = 0.
+   tr % dy = 0.
+   tr % dt = 0.
+end subroutine rad3_delete_volume
 !-------------------------------------------------------------------------------
 
 !===============================================================================
