@@ -139,18 +139,17 @@ end subroutine rad3_save
 !-------------------------------------------------------------------------------
 
 !===============================================================================
-subroutine rad3_save_netcdf(tr, file)
+subroutine rad3_save_netcdf(tr, file, history)
 !===============================================================================
 ! Save a trace to a NetCDF file
-! FIXME: The NetCDF file currently produced by this routine does not provide the
-!        maximum and minimum values shown by GMT's grdinfo command, which in
-!        turn are used by, for example, grd2cpt.  I can't find any documentation
-!        on how these are added to the file.
+! Optionally supply a string (history) which details the command used to produce
+! the NetCDF file (e.g., what filtering used)
    use netcdf, only: nf90_create, nf90_def_dim, nf90_def_var, nf90_enddef, &
       nf90_put_var, nf90_close, NF90_CLOBBER, NF90_FLOAT, nf90_noerr, nf90_strerror, &
       NF90_GLOBAL, nf90_put_att
    type(rad3trace), intent(in) :: tr
    character(len=*), intent(in) :: file
+   character(len=*), intent(in), optional :: history
    integer :: ncid, x_dimid, twtt_dimid, x_varid, twtt_varid, tr_varid
 
    call rad3_check_exists(tr)
@@ -161,16 +160,27 @@ subroutine rad3_save_netcdf(tr, file)
    ! Define dimensions
    call check_ncf(nf90_def_dim(ncid, 'x',    tr%last_trace, x_dimid))
    call check_ncf(nf90_def_dim(ncid, 'twtt', tr%n,          twtt_dimid))
-   ! Set variables
+   ! Set variables for coordinates
    call check_ncf(nf90_def_var(ncid, 'x',    NF90_FLOAT, x_dimid,    x_varid))
    call check_ncf(nf90_def_var(ncid, 'twtt', NF90_FLOAT, twtt_dimid, twtt_varid))
    call check_ncf(nf90_put_att(ncid, x_varid,    'units', 'm'))
    call check_ncf(nf90_put_att(ncid, twtt_varid, 'units', 'ns'))
+   call check_ncf(nf90_put_att(ncid, x_varid,    'long_name', 'Distance along profile'))
+   call check_ncf(nf90_put_att(ncid, twtt_varid, 'long_name', 'Two-way travel time'))
+   call check_ncf(nf90_put_att(ncid, x_varid,    'actual_range', &
+      (/tr%x(1), tr%x(tr%last_trace)/)))
+   call check_ncf(nf90_put_att(ncid, twtt_varid, 'actual_range', &
+      (/tr%twtt(1), tr%twtt(tr%n)/)))
    call check_ncf(nf90_def_var(ncid, 'amplitude', NF90_FLOAT, (/x_dimid, twtt_dimid/), &
       tr_varid))
+   ! Set variables for amplitude
+   call check_ncf(nf90_put_att(ncid, tr_varid, 'long_name', 'Radar amplitude'))
+   call check_ncf(nf90_put_att(ncid, tr_varid, 'actual_range', &
+      (/minval(tr%tr), maxval(tr%tr)/)))
+
    ! Add comments about data
    call check_ncf(nf90_put_att(ncid, NF90_GLOBAL, 'title', &
-      'Converted from RAD3 file <'//trim(file)//'.rd3> by f90rad3'))
+      'Converted from RAD3 by f90rad3'))
    call check_ncf(nf90_put_att(ncid, NF90_GLOBAL, 'comment', &
       'Operator: '// trim(tr%operator_name) // '; ' // &
       'Customer: '// trim(tr%customer_name) // '; ' // &
@@ -178,11 +188,17 @@ subroutine rad3_save_netcdf(tr, file)
       'Antennas: ' // trim(tr%antennas) // '; ' // &
       'Antenna orientation: ' // trim(tr%antenna_orientation) // '; ' // &
       'Comments: ' // trim(tr%comment)))
+   if (present(history)) then
+      call check_ncf(nf90_put_att(ncid, NF90_GLOBAL, 'history', trim(history)))
+   endif
+   ! Finish data description
    call check_ncf(nf90_enddef(ncid))
+
    ! Fill structure
    call check_ncf(nf90_put_var(ncid, x_varid,    tr%x))
    call check_ncf(nf90_put_var(ncid, twtt_varid, tr%twtt))
    call check_ncf(nf90_put_var(ncid, tr_varid,   transpose(tr%tr)))
+
    ! Finalise file
    call check_ncf(nf90_close(ncid))
 

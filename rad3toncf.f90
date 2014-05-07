@@ -8,7 +8,7 @@ program rad3toncf
 
    implicit none
    type(rad3trace) :: tr
-   character(len=250) :: infile, outfile
+   character(len=250) :: infile, outfile, command
    real(8) :: lin_gain, exp_gain
    integer :: start_samp
    logical :: rmean = .false., gain = .false., outfile_set = .false.
@@ -20,7 +20,7 @@ program rad3toncf
    if (rmean) call rad3_remove_mean(tr)
    if (gain) call rad3_gain(tr, start_samp, lin_gain, exp_gain)
 
-   call rad3_save_netcdf(tr, outfile)
+   call rad3_save_netcdf(tr, outfile, history=command)
 
 contains
    subroutine usage()
@@ -69,6 +69,8 @@ contains
          end select
       enddo
       if (.not.outfile_set) outfile = trim(infile) // '.nc'
+      call get_command(command)
    end subroutine get_args
+
 end program rad3toncf
 !-------------------------------------------------------------------------------
