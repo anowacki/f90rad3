@@ -139,6 +139,63 @@ end subroutine rad3_save
 !-------------------------------------------------------------------------------
 
 !===============================================================================
+subroutine rad3_save_netcdf(tr, file)
+!===============================================================================
+! Save a trace to a NetCDF file
+! FIXME: The NetCDF file currently produced by this routine does not provide the
+!        maximum and minimum values shown by GMT's grdinfo command, which in
+!        turn are used by, for example, grd2cpt.  I can't find any documentation
+!        on how these are added to the file.
+   use netcdf, only: nf90_create, nf90_def_dim, nf90_def_var, nf90_enddef, &
+      nf90_put_var, nf90_close, NF90_CLOBBER, NF90_FLOAT, nf90_noerr, nf90_strerror, &
+      NF90_GLOBAL, nf90_put_att
+   type(rad3trace), intent(in) :: tr
+   character(len=*), intent(in) :: file
+   integer :: ncid, x_dimid, twtt_dimid, x_varid, twtt_varid, tr_varid
+
+   call rad3_check_exists(tr)
+
+   ! Create file
+   call check_ncf(nf90_create(trim(file), NF90_CLOBBER, ncid))
+
+   ! Define dimensions
+   call check_ncf(nf90_def_dim(ncid, 'x',    tr%last_trace, x_dimid))
+   call check_ncf(nf90_def_dim(ncid, 'twtt', tr%n,          twtt_dimid))
+   ! Set variables
+   call check_ncf(nf90_def_var(ncid, 'x',    NF90_FLOAT, x_dimid,    x_varid))
+   call check_ncf(nf90_def_var(ncid, 'twtt', NF90_FLOAT, twtt_dimid, twtt_varid))
+   call check_ncf(nf90_put_att(ncid, x_varid,    'units', 'm'))
+   call check_ncf(nf90_put_att(ncid, twtt_varid, 'units', 'ns'))
+   call check_ncf(nf90_def_var(ncid, 'amplitude', NF90_FLOAT, (/x_dimid, twtt_dimid/), &
+      tr_varid))
+   ! Add comments about data
+   call check_ncf(nf90_put_att(ncid, NF90_GLOBAL, 'title', &
+      'Converted from RAD3 file <'//trim(file)//'.rd3> by f90rad3'))
+   call check_ncf(nf90_put_att(ncid, NF90_GLOBAL, 'comment', &
+      'Operator: '// trim(tr%operator_name) // '; ' // &
+      'Customer: '// trim(tr%customer_name) // '; ' // &
+      'Site: ' // trim(tr%site_name) // '; ' // &
+      'Antennas: ' // trim(tr%antennas) // '; ' // &
+      'Antenna orientation: ' // trim(tr%antenna_orientation) // '; ' // &
+      'Comments: ' // trim(tr%comment)))
+   call check_ncf(nf90_enddef(ncid))
+   ! Fill structure
+   call check_ncf(nf90_put_var(ncid, x_varid,    tr%x))
+   call check_ncf(nf90_put_var(ncid, twtt_varid, tr%twtt))
+   call check_ncf(nf90_put_var(ncid, tr_varid,   transpose(tr%tr)))
+   ! Finalise file
+   call check_ncf(nf90_close(ncid))
+
+contains
+   subroutine check_ncf(status)
+      integer, intent(in) :: status
+      if (status /= nf90_noerr) &
+         call rad3_error('rad3_save_netcdf: '//trim(nf90_strerror(status)))
+      end subroutine check_ncf
+end subroutine rad3_save_netcdf
+!-------------------------------------------------------------------------------
+
+!===============================================================================
 subroutine rad3_info(tr)
 !===============================================================================
 ! Write some useful information about a rad3 file to stdout
@@ -159,6 +216,7 @@ subroutine rad3_dump(tr)
    implicit none
    type(rad3trace), intent(in) :: tr
    integer :: ix, it
+   call rad3_check_exists(tr)
    do ix=1,tr%last_trace
       do it=1,tr%n
          write(ISTDOUT,*) tr%x(ix), tr%twtt(it), tr%tr(it,ix)
@@ -297,6 +355,7 @@ subroutine rad3_write_rad_file(tr, file)
 ! Save the ASCII header file.  Supply filename without the .rad extension.
    type(rad3trace), intent(in) :: tr
    character(len=*), intent(in) :: file
+   call rad3_check_exists(tr)
    call rad3_check_file_name(file)
    open(IOUT, file=trim(file)//'.rad')
    write(IOUT, '(a,i0)')   'SAMPLES:', tr % n
@@ -310,13 +369,13 @@ subroutine rad3_write_rad_file(tr, file)
    write(IOUT, '(a,i0)')   'EXTERNAL FLAG:', tr % external_flag
    write(IOUT, '(a,f0.6)') 'TIME INTERVAL:', tr % time_interval
    write(IOUT, '(a,f0.6)') 'DISTANCE INTERVAL:', tr % distance_interval
-   write(IOUT, '(a,a)')    'OPERATOR:', tr % operator_name
-   write(IOUT, '(a,a)')    'CUSTOMER:', tr % customer_name
-   write(IOUT, '(a,a)')    'SITE:', tr % site_name
-   write(IOUT, '(a,a)')    'ANTENNAS:', tr % antennas
-   write(IOUT, '(a,a)')    'ANTENNA ORIENTATION:', tr % antenna_orientation
+   write(IOUT, '(a,a)')    'OPERATOR:', trim(tr % operator_name)
+   write(IOUT, '(a,a)')    'CUSTOMER:', trim(tr % customer_name)
+   write(IOUT, '(a,a)')    'SITE:', trim(tr % site_name)
+   write(IOUT, '(a,a)')    'ANTENNAS:', trim(tr % antennas)
+   write(IOUT, '(a,a)')    'ANTENNA ORIENTATION:', trim(tr % antenna_orientation)
    write(IOUT, '(a,f0.6)') 'ANTENNA SEPARATION:', tr % antenna_separation
-   write(IOUT, '(a,a)')    'COMMENT:', tr % comment
+   write(IOUT, '(a,a)')    'COMMENT:', trim(tr % comment)
    write(IOUT, '(a,f0.6)') 'TIMEWINDOW:', tr % timewindow
    write(IOUT, '(a,i0)')   'STACKS:', tr % stacks
    write(IOUT, '(a,i0)')   'STACK EXPONENT:', tr % stack_exponent
@@ -414,6 +473,16 @@ subroutine rad3_check_file_name(file)
          call rad3_warning('rad3_check_file_name: Supplied filename includes extension.  Do not supply.')
    endif
 end subroutine rad3_check_file_name
+!-------------------------------------------------------------------------------
+
+!===============================================================================
+subroutine rad3_check_exists(tr)
+!===============================================================================
+   type(rad3trace), intent(in) :: tr
+   if (.not.allocated(tr%tr) .or. .not.allocated(tr%x) .or. &
+      .not.allocated(tr%twtt)) &
+      call rad3_error('rad3_check_exists: Trace does not exist')
+end subroutine rad3_check_exists
 !-------------------------------------------------------------------------------
 
 !===============================================================================
