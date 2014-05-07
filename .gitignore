@@ -2,3 +2,6 @@
 *.o
 bin/*
 obj/*
+
+# Test data output
+test/test_data_out*
