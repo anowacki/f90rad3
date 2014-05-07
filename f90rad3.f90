@@ -669,14 +669,19 @@ subroutine rad3_volume_remove_mean(v)
 ! i.e., where the trace is not zeroed.
    type(rad3volume), intent(inout) :: v
    real(rs), dimension(v%nt) :: mean
-   integer :: ix, iy
+   integer :: ipts, ix, iy
    call rad3_verbose('rad3_volume_remove_mean: Removing mean trace from volume')
    mean = 0
+   ipts = 0
    do iy = 1, v%ny
       do ix = 1, v%nx
-         if (maxval(abs(v%amp(ix,iy,:))) > 1) mean = mean + v%amp(ix,iy,:)
+         if (maxval(abs(v%amp(ix,iy,:))) > 1) then
+            mean = mean + v%amp(ix,iy,:)
+            ipts = ipts + 1
+         endif
       enddo
    enddo
+   mean = mean/real(ipts)
    do iy = 1, v%ny
       do ix = 1, v%nx
          if (maxval(abs(v%amp(ix,iy,:))) > 1) v%amp(ix,iy,:) = v%amp(ix,iy,:) - mean
