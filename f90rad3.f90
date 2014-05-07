@@ -208,7 +208,7 @@ contains
       if (verbose) write(ISTDERR,'(a,3(1x,i0))') 'rad3_load_volume: nx,ny,nt =',vol%nx,vol%ny,vol%nt
       allocate(vol%x(vol%nx))
       ! Fill in array of x values
-      do i = 1, nfiles
+      do i = 1, vol%nx
          vol % x(i) = xmin + real(i-1)*vol%dx
       enddo
       allocate(vol%amp(vol%nx,vol%ny,vol%nt))
@@ -631,11 +631,31 @@ subroutine rad3_gain(tr, start_samp, lin_gain, exp_gain)
    if (start_samp < 1 .or. start_samp > tr%n) &
       call rad3_error('rad3_gain: Start sample must be between 1 and nsamples')
    do it = start_samp, tr%n
-      tr%tr(it,:) = real(real(tr%tr(it,:),dp) + &
-         lin_gain*real(tr%twtt(it-start_samp+1),dp)* &
-         exp(exp_gain*1.e-9_dp*real(tr%twtt(it-start_samp+1),dp)), kind=rs)
+      tr%tr(it,:) = real(tr%tr(it,:) * &
+         (lin_gain*tr%twtt(it-start_samp+1) + &
+          exp(exp_gain*1.e-3_dp*tr%twtt(it-start_samp+1))), kind=rs)
    enddo
 end subroutine rad3_gain
+!-------------------------------------------------------------------------------
+
+!===============================================================================
+subroutine rad3_volume_gain(tr, start_samp, lin_gain, exp_gain)
+!===============================================================================
+! Apply time-varying gain to a trace of the form
+!    A(t) = A0(t)*lin_gain + t*exp(exp_gain*t),
+! starting at sample number start_samp
+   type(rad3volume), intent(inout) :: tr
+   integer, intent(in) :: start_samp
+   real(dp), intent(in) :: lin_gain, exp_gain
+   integer :: it
+   if (start_samp < 1 .or. start_samp > tr%nt) &
+      call rad3_error('rad3_volume_gain: Start sample must be between 1 and nsamples')
+   do it = start_samp, tr%nt
+      tr%amp(:,:,it) = real(tr%amp(:,:,it) * &
+         (lin_gain*tr%twtt(it-start_samp+1) + &
+          exp(exp_gain*1.e-3_dp*tr%twtt(it-start_samp+1))), kind=rs)
+   enddo
+end subroutine rad3_volume_gain
 !-------------------------------------------------------------------------------
 
 !===============================================================================
