@@ -8,7 +8,7 @@ program rad3info
 
    call get_command_argument(1, file)
 
-   call rad3_read_rad_file(trim(file)//'.rad', tr)
+   call rad3_load(trim(file), tr)
    call rad3_info(tr)
    
 contains

@@ -200,12 +200,17 @@ subroutine rad3_info(tr)
 !===============================================================================
 ! Write some useful information about a rad3 file to stdout
    type(rad3trace), intent(in) :: tr
+   call rad3_check_exists(tr)
    write(ISTDOUT,'(a,f0.8)') 'delta = ', tr % delta
    write(ISTDOUT,'(a,i0)')   'npts  = ', tr % n
    write(ISTDOUT,'(a,f0.8)') 'dx    = ', tr % distance_interval
+   write(ISTDOUT,'(a,f0.8)') 'xmin  = ', tr % x(1)
    write(ISTDOUT,'(a,f0.8)') 'xmax  = ', tr % x(tr%last_trace)
+   write(ISTDOUT,'(a,f0.8)') 'tmin  = ', tr % twtt(1)
    write(ISTDOUT,'(a,f0.8)') 'tmax  = ', tr % twtt(tr%n)
    write(ISTDOUT,'(a,i0)')   'xpts  = ', tr % last_trace
+   write(ISTDOUT,'(a,f0.8)') 'amin  = ', minval(tr % tr)
+   write(ISTDOUT,'(a,f0.8)') 'amax  = ', maxval(tr % tr)
 end subroutine rad3_info
 !-------------------------------------------------------------------------------
 
