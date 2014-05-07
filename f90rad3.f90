@@ -27,7 +27,10 @@ module f90rad3
 
    ! Helper routines not exposed
    private :: rad3_error, &
-              rad3_warning
+              rad3_warning, &
+              rad3_allocate, &
+              rad3_verbose, &
+              rad3_check_file_name
 
    ! Type defining a section (collection of traces)
    type rad3trace
@@ -36,9 +39,9 @@ module f90rad3
       ! Header part; not all fields needed
       integer :: n  ! number of samples
       real(rs) :: frequency
-      real(rs) :: frequency_steps
+      integer :: frequency_steps
       real(rs) :: signal_position
-      real(rs) :: raw_signal_position
+      integer :: raw_signal_position
       integer :: distance_flag
       integer :: time_flag
       integer :: program_flag
@@ -91,10 +94,7 @@ subroutine rad3_load(file, tr)
    logical :: exists
    integer :: i
 
-   if (len_trim(file) > 5) then
-      if (file(len_trim(file)-3:len_trim(file)) == '.rd3') &
-         call rad3_warning('rad3_load: Supplied filename includes extension.  Do not supply.')
-   endif
+   call rad3_check_file_name(file)
    ! Get header information
    call rad3_read_rad_file(trim(file)//'.rad', tr)
    ! Allocate memory for section
@@ -116,16 +116,39 @@ end subroutine rad3_load
 !-------------------------------------------------------------------------------
 
 !===============================================================================
+subroutine rad3_save(tr, file)
+!===============================================================================
+! Save a trace as a RAD3-format file, including the header file.
+! file should be the name of the file without the suffix.
+   type(rad3trace), intent(in) :: tr
+   character(len=*), intent(in) :: file
+   integer :: i
+   real(rs) :: scale
+   call rad3_check_file_name(file)
+   ! Normalise trace to fit into short int
+   scale = real(huge(1_rad3int))/maxval(abs(tr%tr))
+   ! Save binary part
+   open(IOUT, file=trim(file)//'.rd3', access='direct', recl=rad3int*tr%n)
+   do i = 1, tr%last_trace
+      write(IOUT, rec=i) int(tr%tr(:,i)*scale, kind=rad3int)
+   enddo
+   close(IOUT)
+   ! Save ASCII header
+   call rad3_write_rad_file(tr, file)
+end subroutine rad3_save
+!-------------------------------------------------------------------------------
+
+!===============================================================================
 subroutine rad3_info(tr)
 !===============================================================================
 ! Write some useful information about a rad3 file to stdout
    type(rad3trace), intent(in) :: tr
    write(ISTDOUT,'(a,f0.8)') 'delta = ', tr % delta
-   write(ISTDOUT,'(a,i0.0)') 'npts  = ', tr % n
+   write(ISTDOUT,'(a,i0)')   'npts  = ', tr % n
    write(ISTDOUT,'(a,f0.8)') 'dx    = ', tr % distance_interval
    write(ISTDOUT,'(a,f0.8)') 'xmax  = ', tr % x(tr%last_trace)
    write(ISTDOUT,'(a,f0.8)') 'tmax  = ', tr % twtt(tr%n)
-   write(ISTDOUT,'(a,i0.0)') 'xpts  = ', tr % last_trace
+   write(ISTDOUT,'(a,i0)')   'xpts  = ', tr % last_trace
 end subroutine rad3_info
 !-------------------------------------------------------------------------------
 
@@ -269,6 +292,56 @@ end subroutine rad3_read_rad_file
 !-------------------------------------------------------------------------------
 
 !===============================================================================
+subroutine rad3_write_rad_file(tr, file)
+!===============================================================================
+! Save the ASCII header file.  Supply filename without the .rad extension.
+   type(rad3trace), intent(in) :: tr
+   character(len=*), intent(in) :: file
+   call rad3_check_file_name(file)
+   open(IOUT, file=trim(file)//'.rad')
+   write(IOUT, '(a,i0)')   'SAMPLES:', tr % n
+   write(IOUT, '(a,f0.6)') 'FREQUENCY:', tr % frequency
+   write(IOUT, '(a,i0)')   'FREQUENCY STEPS:', tr % frequency_steps
+   write(IOUT, '(a,f0.6)') 'SIGNAL POSITION:', tr % signal_position
+   write(IOUT, '(a,i0)')   'RAW SIGNAL POSITION:', tr % raw_signal_position
+   write(IOUT, '(a,i0)')   'DISTANCE FLAG:', tr % distance_flag
+   write(IOUT, '(a,i0)')   'TIME FLAG:', tr % time_flag
+   write(IOUT, '(a,i0)')   'PROGRAM FLAG:', tr % program_flag
+   write(IOUT, '(a,i0)')   'EXTERNAL FLAG:', tr % external_flag
+   write(IOUT, '(a,f0.6)') 'TIME INTERVAL:', tr % time_interval
+   write(IOUT, '(a,f0.6)') 'DISTANCE INTERVAL:', tr % distance_interval
+   write(IOUT, '(a,a)')    'OPERATOR:', tr % operator_name
+   write(IOUT, '(a,a)')    'CUSTOMER:', tr % customer_name
+   write(IOUT, '(a,a)')    'SITE:', tr % site_name
+   write(IOUT, '(a,a)')    'ANTENNAS:', tr % antennas
+   write(IOUT, '(a,a)')    'ANTENNA ORIENTATION:', tr % antenna_orientation
+   write(IOUT, '(a,f0.6)') 'ANTENNA SEPARATION:', tr % antenna_separation
+   write(IOUT, '(a,a)')    'COMMENT:', tr % comment
+   write(IOUT, '(a,f0.6)') 'TIMEWINDOW:', tr % timewindow
+   write(IOUT, '(a,i0)')   'STACKS:', tr % stacks
+   write(IOUT, '(a,i0)')   'STACK EXPONENT:', tr % stack_exponent
+   write(IOUT, '(a,f0.6)') 'STACKING TIME:', tr % stacking_time
+   write(IOUT, '(a,i0)')   'LAST TRACE:', tr % last_trace
+   write(IOUT, '(a,f0.6)') 'STOP POSITION:', tr % stop_position
+   write(IOUT, '(a,f0.10)')'SYSTEM CALIBRATION:', tr % system_calibration
+   write(IOUT, '(a,f0.6)') 'START POSITION:', tr % start_position
+   write(IOUT, '(a,i0)')   'SHORT FLAG:', tr % short_flag
+   write(IOUT, '(a,i0)')   'INTERMEDIATE FLAG:', tr % intermediate_flag
+   write(IOUT, '(a,i0)')   'LONG FLAG:', tr % long_flag
+   write(IOUT, '(a,i0)')   'PREPROCESSING:', tr % preprocessing
+   write(IOUT, '(a,i0)')   'HIGH:', tr % high
+   write(IOUT, '(a,i0)')   'LOW:', tr % low
+   write(IOUT, '(a,f0.6)') 'FIXED INCREMENT:', tr % fixed_increment
+   write(IOUT, '(a,i0)')   'FIXED MOVES UP:', tr % fixed_moves_up
+   write(IOUT, '(a,i0)')   'FIXED MOVES DOWN:', tr % fixed_moves_down
+   write(IOUT, '(a,f0.6)') 'FIXED POSITION:', tr % fixed_position
+   write(IOUT, '(a,f0.6)') 'WHEEL CALIBRATION:', tr % wheel_calibration
+   write(IOUT, '(a,i0)')   'POSITIVE DIRECTION:', tr % positive_direction
+   close(IOUT)
+end subroutine rad3_write_rad_file
+!-------------------------------------------------------------------------------
+
+!===============================================================================
 subroutine rad3_remove_mean(tr)
 !===============================================================================
 ! Remove the mean trace from each shot
@@ -328,6 +401,19 @@ subroutine rad3_allocate(a, n)
       allocate(a(n))
    endif
 end subroutine rad3_allocate
+!-------------------------------------------------------------------------------
+
+!===============================================================================
+subroutine rad3_check_file_name(file)
+!===============================================================================
+! Makes sure that a file does not contain the extension
+   character(len=*), intent(in) :: file
+   if (len_trim(file) > 5) then
+      if (file(len_trim(file)-3:len_trim(file)) == '.rd3' .or. &
+          file(len_trim(file)-3:len_trim(file)) == '.rad') &
+         call rad3_warning('rad3_check_file_name: Supplied filename includes extension.  Do not supply.')
+   endif
+end subroutine rad3_check_file_name
 !-------------------------------------------------------------------------------
 
 !===============================================================================
