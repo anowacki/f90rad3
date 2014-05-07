@@ -53,15 +53,12 @@ CPT=$(mktemp /tmp/rad3plot.cptXXXXXX)
 FIG=$(mktemp /tmp/rad3plot.psXXXXXX)
 trap "rm -f $FIG $GRD $CPT" EXIT
 
-# Get info for creating grd file
-set -- $(rad3info "$file" | awk '/delta/||/dx/||/xmax/||/tmax/ {print $3}')
-delta=$1
-dx=$2
-[ -z "$x2" ] && x2=$3
-[ -z "$t2" ] && t2=$4
+# Make grd file and get relevant info from it
+rad3toncf $flags -o "$GRD" "$file"
+set -- $(grdinfo "$GRD" | awk '/x_max/||/y_max/ {print $5}')
+[ -z "$x2" ] && x2=$1
+[ -z "$t2" ] && t2=$2
 
-# Make netcdf grd file
-rad3dump $flags "$file" | xyz2grd -R$x1/$x2/$t1/$t2 -I$dx/$delta -G"$GRD"
 # Get maximum amplitude
 [ -z "$Amax" ] &&
 	Amax=$(grdinfo "$GRD" |
@@ -70,7 +67,7 @@ rad3dump $flags "$file" | xyz2grd -R$x1/$x2/$t1/$t2 -I$dx/$delta -G"$GRD"
 dA=$(echo "$Amax/41" | bc -l)
 makecpt -Cpolar -T-$Amax/$Amax/$dA -D > "$CPT"
 [ -n "$xscale" ] && J=x${xscale}/-${yscale}c || J=X${X}c/-${Y}c
-grdimage "$GRD" -J$J -R -C"$CPT" \
+grdimage "$GRD" -J$J -R$x1/$x2/$t1/$t2 -C"$CPT" \
 	-Ba10f5:"Distance / m":/a100f10:"Time / ns":nSeW > "$FIG"
 [ -n "$outfile" ] && cp "$FIG" "$outfile"
 [ -z "$batch" ] && gv "$FIG" 2>/dev/null
