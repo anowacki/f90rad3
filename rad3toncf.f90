@@ -53,6 +53,7 @@ contains
                read(arg,*) lin_gain
                call get_command_argument(iarg+3, arg)
                read(arg,*) exp_gain
+               gain = .true.
                iarg = iarg + 4
             case('-o')
                call get_command_argument(iarg+1, outfile)
