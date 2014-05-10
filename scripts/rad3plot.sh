@@ -22,6 +22,7 @@ usage () {
 		echo "   -xlim [x0 x1]  : Distance window [all]"
 		echo "   -v             : Verbose output from rad3dump"
 		echo "   -x|-y [size]   : Set size of x or y axis in cm [$X cm|$Y cm]"
+		echo "   -h(elp)        : Print this message"
 	} > /dev/stderr
 	exit 1
 }
@@ -34,6 +35,7 @@ while [ "$1" ]; do
 		-b) batch=1; shift ;;
 		-gain) start_samp="$2"; lin_gain="$3"; exp_gain="$4"; 
 			flags="$flags -gain $start_samp $lin_gain $exp_gain"; shift 4 ;;
+		-h|-help) usage 2>&1 ;;
 		-rmean) flags="$flags -rmean"; shift ;;
 		-o) outfile="$2"; shift 2 ;;
 		-scale) xscale="$2"; yscale="$3"; shift 3 ;;

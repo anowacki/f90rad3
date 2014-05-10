@@ -18,15 +18,11 @@ usage () {
 		   -s [scale]   : Set scale [not set]
 		   -t [title]   : Add title to plot [none]
 		   -w [width]   : Plot width / cm [15]
+		   -h(help)     : Print this message
 		END
 	} >&2
 	exit 1
 }
-
-# Check the input file is present
-[ ! -r rad3slice.in ] &&
-	echo "$(basename $0): Error: file 'rad3slice.in' must be present" > /dev/stderr &&
-	exit 1
 
 # Process arguments
 [ $# -eq 0 ] && usage
@@ -34,6 +30,7 @@ while [ -n "$1" ]; do
 	case "$1" in
 		-a) Amax="$2"; shift 2 ;;
 		-b) batch=1; shift ;;
+		-h|-help) usage 2>&1 ;;
 		-o) outfile="$2"; shift 2 ;;
 		-s) [ -z "$width" ] && scale="$2" || usage; shift 2 ;;
 		-t) title="$2"; shift 2 ;;
@@ -41,6 +38,11 @@ while [ -n "$1" ]; do
 		*) [ $# -ne 1 ] && usage; twtt="$1"; shift ;;
 	esac
 done
+
+# Check the input file is present
+[ ! -r rad3slice.in ] &&
+	echo "$(basename $0): Error: file 'rad3slice.in' must be present" > /dev/stderr &&
+	exit 1
 
 [ -z "$width" -a -z "$scale" ] && width="${width_default}"
 
