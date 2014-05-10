@@ -1,7 +1,153 @@
 f90rad3
 =======
 
-This directory contains a set of Fortran routines for
-reading and writing rad3 files, as used by Mala GPR
-equipment.  Based on the MATLAB rd3functions code by
-Aslak Grinsted, 2002.
+Andy Nowacki
+andy.nowacki@bristol.ac.uk
+
+Routines for reading, writing and manipulating Ground Penetrating Radar
+data as produced by (at least) Malå Ramac GPR units, in Fortran.
+
+
+Installation
+------------
+
+f90rad3 requires a Fortran compiler and access to the NetCDF Fortran libraries.
+The code uses the Fortran 2003 constructs for accessing command line options,
+but these calls can be replaced with compiler-specific ones if you only have
+access to an older compiler.
+
+The Generic Mapping Tools (http://gmt.seos.hawaii.edu) are needed for plotting
+data using the supplied scripts.  By default, gv
+(http://www.gnu.org/software/gv/) is used to display the plots, but is not
+needed as plots are just Postscript files.
+
+To build the binaries, just
+
+    $ make
+
+If necessary, specify your Fortran compiler and preferred compilation flags
+with:
+
+    $ make FC=ifort FFLAGS="-O2 -g"
+
+By default your NetCDF libraries are assumed to be in /opt/local; to specify
+that they are elsewhere, provide the necessary flags in the LIBS and INCS
+variables:
+
+    $ make INCS="-I/usr/local/include" LIBS="-L/usr/local/lib -lnetcdff"
+
+You can then add add the scripts and binaries to your path by doing:
+
+    $ export PATH=$PATH:"$PWD/bin":"$PWD/scripts" # sh or bash
+    % setenv PATH $PATH:"$PWD/bin":"$PWD/scripts" # csh or tcsh
+
+
+RAD3-format data
+----------------
+
+RAD3 files are flat binary files made up of C short ints, accompanied with an
+ASCII header file, usually of the same name as the RAD3 file, but with the
+extension '.rad'.  Hence the data ('.rd3') and header files must be kept
+together to accurately read the files.  Files for markers ('.mrk') made during
+acquisition, nor GPS location data ('.cor') are currently used by the module.
+
+
+Using the plotting scripts
+--------------------------
+
+With GMT installed, you can visualise data without having to write and Fortran
+programs yourself.  Just ensure that you have set your PATH as above.
+
+== rad3plot.sh ==
+
+This script plots a single RAD3 trace with distance against twtt.  Type
+rad3plot.sh without arguments for details of all command line options.
+
+Plot a single RAD3 trace unfiltered:
+
+    $ rad3plot.sh data
+
+As above, but with the mean trace removed and time-varying gain applied:
+
+    $ rad3plot.sh -rmean -gain 40 30 10 data
+
+As above, but saturate the amplitude scale at 10000:
+
+    $ rad3plot.sh -rmean -gain 40 30 10 -a 10000 data
+
+To save the plot for later use without viewing it:
+
+    $ rad3plot.sh -o plot_data.ps -b data
+
+== rad3plot_slice.sh ==
+
+This script takes a series of parallel, equally-spaced RAD3 traces and plots
+timeslices.  Type the name of the script with no arguments to see all the
+command line options.
+
+In order to use, create a file called rad3slice.in in the current directory
+which details the x offset and y offset of each line, as in the diagram below:
+
+                   <- Lines start at this end
+
+                       | x_offset = 4
+                       v
+  File: dat3.rd3       -----------------------  <- y_offset = 2 x line_spacing
+                   v- x_offset = 0
+  File: dat2.rd3   ---------------------------  <- y_offset = 1 x line_spacing
+
+  File: dat1.rd3   ---------------------------  <- y_offset = 0
+                   ^
+                   | x_offset = 0
+
+The rad3slice.in file should have on each line (one line per file):
+
+    rad3_filename y_offset x_offset
+
+Hence for the example above, with line spacing of 0.3 m, rad3slice.in will
+look like:
+
+    dat1   0 0
+    dat2 0.3 0
+    dat3 0.6 4
+
+Then you can plot a timeslice of the volume at 30 ns:
+
+    rad3plot_slice.sh 30
+
+
+Using the module
+----------------
+
+Routines are provided in the f90rad3.f90 module.  You can gain access to these
+routines in your code with:
+
+    use f90rad3
+
+Read in a RAD3 file:
+
+    type(rad3trace) :: rad3tr
+    character(len=10) :: filename = 'data'  ! Do not use the .rd3 extension
+    call rad3_load(filename, rad3tr)
+
+Remove the mean trace and apply time-varying gain starting at sample number
+40, with linear factor 30 and exponential factor 5:
+
+    call rad3_remove_mean(rad3tr)
+    call rad3_gain(rad3tr, 40, 30., 5.)
+
+Dump the filtered trace to stdout as x, time, amplitude data:
+
+    call rad3_dump(rad3tr)
+
+Save the filtered trace to a new file, setting the comment string to detail
+the filtering performed in the header:
+
+    rad3tr % comment = 'mean trace removed; gain params: 40 30 5'
+    call rad3_save(rad3tr, 'filtered_data')
+    ! Files filtered_data.rd3 and filtered_data.rad are saved
+
+Export the filtered trace to a NetCDF file for visualisation, optionally with
+a comment string:
+
+    call rad3_save_netcdf(rad3tr, 'filtered_data.nc', history=rad3tr % comment)
