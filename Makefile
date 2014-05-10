@@ -4,6 +4,7 @@ FFLAGS = -O2 -g -fcheck=all -Wall
 B = bin
 M = mod
 O = obj
+S = src
 
 LIBS = -L/opt/local/lib -lnetcdff
 
@@ -34,8 +35,8 @@ $B/%: $(MODS) $O/%.o
 	$(FC) $(FFLAGS) -J$M $(LIBS) $(INCS) -o $@ $^
 
 # Build object files
-$O/%.o: %.f90
-	$(FC) $(FFLAGS) -c -J$M $(INCS) -o $O/$*.o $*.f90
+$O/%.o: src/%.f90
+	$(FC) $(FFLAGS) -c -J$M $(INCS) -o $O/$*.o src/$*.f90
 
 $O/%.o: test/%.f90
 	$(FC) $(FFLAGS) -c -J$M $(INCS) -o $O/$*.o test/$*.f90
