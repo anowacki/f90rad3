@@ -15,6 +15,8 @@ PROGS = $B/rad3dump \
         $B/rad3toncf \
         $B/rad3voltoncf
 
+TEST_PROGS = $B/test_save
+
 MODS = $O/f90rad3.o
 
 OBJS = $O/rad3dump.o \
@@ -25,6 +27,8 @@ OBJS = $O/rad3dump.o \
 
 default: $(PROGS)
 
+test: $(TEST_PROGS)
+
 # Build programs
 $B/%: $(MODS) $O/%.o
 	$(FC) $(FFLAGS) -J$M $(LIBS) $(INCS) -o $@ $^
@@ -33,8 +37,12 @@ $B/%: $(MODS) $O/%.o
 $O/%.o: %.f90
 	$(FC) $(FFLAGS) -c -J$M $(INCS) -o $O/$*.o $*.f90
 
+$O/%.o: test/%.f90
+	$(FC) $(FFLAGS) -c -J$M $(INCS) -o $O/$*.o test/$*.f90
+	
 # Dependencies
 $(PROGS): $(MODS)
+$(TEST_PROGS): $(MODS)
 
 $(OBJS): $(MODS)
 
