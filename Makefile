@@ -16,7 +16,8 @@ PROGS = $B/rad3dump \
         $B/rad3toncf \
         $B/rad3voltoncf
 
-TEST_PROGS = $B/test_save
+TEST_PROGS = $B/test_load \
+             $B/test_save 
 
 MODS = $O/f90rad3.o
 

@@ -31,7 +31,9 @@ run_test () {
 	mark_fail
 }
 
-run_test test_save
+for test in test_{load,save}; do
+	run_test $test
+done
 
 # Set error state
 [ -z "$fail" ] && exit 0 || exit 1
