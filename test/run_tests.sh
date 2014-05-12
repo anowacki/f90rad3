@@ -2,6 +2,15 @@
 # Run all the tests and exit with value > 0 if any fail.
 # Invoke with any argument to get verbose output
 
+#===============================================================================
+# Part of f90rad3, the Fortran module for dealing with GPR data files in the
+# RAD3 format.
+#
+# Andy Nowacki <andy.nowacki@bristol.ac.uk>
+#
+# See the file LICENCE for licence details.
+#===============================================================================
+
 if [[ "$PWD" != */test ]]; then
 	echo "$(basename $0) must be run in the test directory" >&2
 	exit 1

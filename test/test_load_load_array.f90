@@ -1,3 +1,11 @@
+!===============================================================================
+! Part of f90rad3, the Fortran module for dealing with GPR data files in the
+! RAD3 format.
+!
+! Andy Nowacki <andy.nowacki@bristol.ac.uk>
+!
+! See the file LICENCE for licence details.
+!===============================================================================
       a(1,1) = -57
       a(2,1) = -90
       a(3,1) = -71

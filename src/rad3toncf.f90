@@ -1,4 +1,11 @@
 !===============================================================================
+! Part of f90rad3, the Fortran module for dealing with GPR data files in the
+! RAD3 format.
+!
+! Andy Nowacki <andy.nowacki@bristol.ac.uk>
+!
+! See the file LICENCE for licence details.
+!===============================================================================
 program rad3toncf
 !===============================================================================
 ! Convert a rad3 file to NetCDF format.  Supply filename without extension.

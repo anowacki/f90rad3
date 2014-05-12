@@ -1,4 +1,11 @@
 !===============================================================================
+! Part of f90rad3, the Fortran module for dealing with GPR data files in the
+! RAD3 format.
+!
+! Andy Nowacki <andy.nowacki@bristol.ac.uk>
+!
+! See the file LICENCE for licence details.
+!===============================================================================
 program rad3slice
 !===============================================================================
 ! Takes a time slice of a set of files in the current folder
