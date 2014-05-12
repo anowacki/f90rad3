@@ -24,6 +24,7 @@ contains
       integer :: iarg, narg
       iarg = 1
       narg = command_argument_count()
+      if (narg == 0) call usage
       call get_command_argument(narg, file)
       do while (iarg < narg)
          call get_command_argument(iarg, arg)
