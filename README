@@ -151,3 +151,18 @@ Export the filtered trace to a NetCDF file for visualisation, optionally with
 a comment string:
 
     call rad3_save_netcdf(rad3tr, 'filtered_data.nc', history=rad3tr % comment)
+
+
+
+Tests
+-----
+
+Tests are built in the root directory:
+
+    $ make test
+
+but must be run from the tests directory:
+
+    $ (cd test && ./run_tests.sh && echo "All passed" || echo "Failed")
+
+The test/run_tests.sh script exits 0 on all tests passing, and 1 if any fail.
