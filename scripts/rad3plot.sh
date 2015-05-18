@@ -63,10 +63,10 @@ set -- $(grdinfo "$GRD" | awk '/x_max/||/y_max/ {print $5}')
 
 # Get maximum amplitude
 [ -z "$Amax" ] &&
-	Amax=$(grdinfo "$GRD" |
-		awk '/z_min/{min=$3; max=$5; if (-min > max) max=-min; print max}') &&
-		echo "Max amplitude: $Amax"
-dA=$(echo "$Amax/41" | bc -l)
+	read Amax dA <<< $(grdinfo "$GRD" |
+		awk '/z_min/{min=$3; max=$5; if (-min > max) max=-min; print max, max/41}') &&
+		echo "Max amplitude: $Amax" ||
+	dA=$(awk -v a=$Amax 'BEGIN{print a/41}')
 makecpt -Cpolar -T-$Amax/$Amax/$dA -D > "$CPT"
 [ -n "$xscale" ] && J=x${xscale}/-${yscale}c || J=X${X}c/-${Y}c
 grdimage "$GRD" -J$J -R$x1/$x2/$t1/$t2 -C"$CPT" \

@@ -61,7 +61,7 @@ set -- $(rad3slice $twtt 2>&1 >/dev/null | awk '
 x1=$1; x2=$2; y1=$3; y2=$4; dx=$5; dy=$6
 R=$x1/$x2/$y1/$y2
 [ -z "$Amax" ] && Amax=$7
-dA=$(echo "$Amax/40" | bc -l)
+dA=$(awk -v a="$Amax" 'BEGIN{print a/40}')
 
 # Make plot
 rad3slice $twtt 2>/dev/null | xyz2grd -R$R -I$dx/$dy -G$GRD
