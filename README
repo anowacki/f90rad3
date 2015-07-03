@@ -2,7 +2,7 @@ f90rad3
 =======
 
 Andy Nowacki
-andy.nowacki@bristol.ac.uk
+a.nowacki@leeds.ac.uk
 
 Routines for reading, writing and manipulating Ground Penetrating Radar
 data as produced by (at least) Malå Ramac GPR units, in Fortran.
@@ -16,7 +16,7 @@ The code uses the Fortran 2003 constructs for accessing command line options,
 but these calls can be replaced with compiler-specific ones if you only have
 access to an older compiler.
 
-The Generic Mapping Tools (http://gmt.seos.hawaii.edu) are needed for plotting
+The Generic Mapping Tools (http://gmt.soest.hawaii.edu) are needed for plotting
 data using the supplied scripts.  By default, gv
 (http://www.gnu.org/software/gv/) is used to display the plots, but is not
 needed as plots are just Postscript files.
